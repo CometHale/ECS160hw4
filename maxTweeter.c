@@ -1,5 +1,3 @@
-// maxTweeter.c
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -41,8 +39,58 @@ can consider empty string as a tweeter name
 
 for ties: just print out whatever you get out of the sort
 */
+
+// Source: https://stackoverflow.com/questions/4384359/quick-way-to-implement-dictionary-in-c
+struct nlist { /* table entry: */
+    struct nlist *next; /* next entry in chain */
+    char *name; /* defined name */
+    char *defn; /* replacement text */
+};
+
+#define HASHSIZE 101
+static struct nlist *hashtab[HASHSIZE]; /* pointer table */
+
+/* hash: form hash value for string s */
+unsigned hash(char *s)
+{
+    unsigned hashval;
+    for (hashval = 0; *s != '\0'; s++)
+      hashval = *s + 31 * hashval;
+    return hashval % HASHSIZE;
+}
+
+/* lookup: look for s in hashtab */
+struct nlist *lookup(char *s)
+{
+    struct nlist *np;
+    for (np = hashtab[hash(s)]; np != NULL; np = np->next)
+        if (strcmp(s, np->name) == 0)
+          return np; /* found */
+    return NULL; /* not found */
+}
+
+/* install: put (name, defn) in hashtab */
+struct nlist *install(char *name, char *defn)
+{
+    struct nlist *np;
+    unsigned hashval;
+    if ((np = lookup(name)) == NULL) { /* not found */
+        np = (struct nlist *) malloc(sizeof(*np));
+        if (np == NULL || (np->name = strdup(name)) == NULL)
+          return NULL;
+        hashval = hash(name);
+        np->next = hashtab[hashval];
+        hashtab[hashval] = np;
+    } else /* already there */
+        free((void *) np->defn); /*free previous defn */
+    if ((np->defn = strdup(defn)) == NULL)
+       return NULL;
+    return np;
+}
+
+
+// maxTweeter.c
 void exit_tweeter_processor_error(struct stat *buf, FILE *csv_file);
-void pre_process_file(FILE * csv_file, struct stat *buf, const char *csv_file_lines[], const int max_line_size, const int max_line_number, int *line_count);
 
 void exit_tweeter_processor_error(struct stat *buf, FILE *csv_file){
 
@@ -54,59 +102,28 @@ void exit_tweeter_processor_error(struct stat *buf, FILE *csv_file){
 
 }
 
-void pre_process_file(FILE * csv_file, struct stat *buf, const char *csv_file_lines[], const int max_line_size, const int max_line_number, int *line_count){
-
-	char line[max_line_size + 1]; // + 1 for \0
-
-	memset(line, '-', max_line_size - 1);
-	line[375] = '\0';
-
-	while (fgets(line, sizeof(line), csv_file)) {
-		
-		// handle invalid csv files
-
-		// handle too-long file ( > 20000 )
-		if (*line_count > max_line_number){
-			exit_tweeter_processor_error(buf, csv_file);
-		}
-
-		// handle line longer than max line size
-		if(!isspace(line[strlen(line) - 1])){ // last char is not \0 \r \n \t etc so strlen(line) > 375
-			//  strlen b/c some lines might be shorter than 375 chars
-			exit_tweeter_processor_error(buf, csv_file);
-		}
-
-		csv_file_lines[*line_count] = line;
-
-		// empty the line
-		memset(line, '-', max_line_size - 1);
-		line[375] = '\0';
-		*line_count = *line_count + 1;
-	}
-
-
-	// handle empty file
-
-	if (*line_count == 0)
-	{
-		exit_tweeter_processor_error(buf, csv_file);
-	}
-
-	return;
-
-}
 
 int main(int argc, char *argv[]){
 
 	const int max_line_size = 375; // assumed max line length of cl-tweets-short.csv 
 	const int max_line_number = 20000;
+	
+	// const int tweet_col_position; // the position of the longest token in the longest line
+	// could be equal to name_col_position
 	const char *csv_path;
-	const char *top_tweeters[10];
-	const char *csv_file_lines[max_line_number];
+	// const char *top_tweeters[10];
 	const char *header;
+	// char *csv_file_lines[max_line_number];
+	char line[max_line_size + 1]; // + 1 for \0
+	char temp_line[max_line_size + 1];
+	char *buffer; 
 	FILE *csv_file;
 	struct stat *buf = malloc(sizeof(struct stat));
+	int name_col_position;
 	int line_count = 0;
+	int num_header_cols = 0;
+	int num_line_cols = 0;
+
 
 	// handle invalid number of command-line inputs
 	if (argc == 0 || argc > 2)
@@ -130,12 +147,90 @@ int main(int argc, char *argv[]){
 		exit_tweeter_processor_error(buf, csv_file);
 	}
 
-	// pre-process the file
-	pre_process_file(csv_file, buf, csv_file_lines, max_line_size, max_line_number, &line_count);
-
 	// handle valid csv files
-
 	
+
+	memset(line, '-', max_line_size - 1);
+	line[375] = '\0';
+
+	while (fgets(line, sizeof(line), csv_file)) {
+		
+		// handle invalid csv files
+
+		// handle too-long file ( > 20000 )
+		if (line_count > max_line_number){
+			exit_tweeter_processor_error(buf, csv_file);
+		}
+
+		// handle line longer than max line size
+		if(!isspace(line[strlen(line) - 1])){ // last char is not \0 \r \n \t etc so strlen(line) > 375
+			//  strlen b/c some lines might be shorter than 375 chars
+			exit_tweeter_processor_error(buf, csv_file);
+		}
+
+		strcpy(temp_line, line); // save a copy of the line
+
+		// empty out the buffer
+		buffer = "";
+		buffer = strtok(temp_line, ",");
+
+		if (line_count == 0)
+		{
+			// first line of the file, check to make sure it's a valid header
+			
+			// handle no header and header without 'name' column
+			if (strstr(line, "\"name\"") == NULL && strstr(line, "name") == NULL) { // cover the bases, could have "name" column or name column
+			   exit_tweeter_processor_error(buf, csv_file);
+			}
+
+			header = line;
+
+			// handle csv isn't comma separated and singular column isn't 'name'
+			if(strlen(line) == strlen(buffer) && strncmp(buffer, "name", 4) != 0 && strncmp(buffer, "\"name\"", 6) != 0){
+				exit_tweeter_processor_error(buf, csv_file);
+			}
+		}
+
+
+		while(buffer != NULL){
+
+			if (line_count == 0){
+				if(strncmp(buffer, "name", 4) == 0 || strncmp(buffer, "\"name\"", 6) == 0){
+					name_col_position = num_header_cols;
+				}
+				num_header_cols++;
+			}
+
+			// handle comma inside of tweet
+			if(num_line_cols > num_header_cols){
+				// if the num_line_cols >  num_header_cols, there's a comma where there shouldn't be one
+				exit_tweeter_processor_error(buf, csv_file);
+			}
+
+			// get the tweeter's name
+			// if the name isn't in the hash already, add name : 1
+			// else increase the number of tweets associated with the name
+
+			buffer = strtok(NULL,",");
+			num_line_cols++;
+		}
+
+
+
+		// empty the line
+		memset(line, '-', max_line_size - 1);
+		line[375] = '\0';
+		line_count++;
+	}
+
+
+	// handle empty file
+
+	if (line_count == 0)
+	{
+		exit_tweeter_processor_error(buf, csv_file);
+	}
+
 
 		// if(*line_count == 0){
 		// 	header = line;
