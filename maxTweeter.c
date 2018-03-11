@@ -92,9 +92,9 @@ struct nlist *lookup(char *s)
 /* install: put (name, defn) in hashtab */
 struct nlist *install(char *name, int defn)
 {
-    struct nlist *np;
+    struct nlist *np = lookup(name);
     unsigned hashval;
-    if ((np = lookup(name)) == NULL) { /* not found */
+    if (np == NULL) { /* not found */
         np = (struct nlist *) malloc(sizeof(*np));
         if (np == NULL || (np->name = strdup(name)) == NULL)
           return NULL;
@@ -104,16 +104,11 @@ struct nlist *install(char *name, int defn)
         hashtab[hashval] = np;
     } 
     else{ /* already there */ // changed from original
-    	np->defn = defn;
-    	hashtab[hashval] = np; // replace with the new key-val pair
+    	hashtab[hash(name)]->defn = defn;
     }
-    //else /* already there */
-        // free((void *) np->defn); /*free previous defn */
-    // if ((np->defn = defn) == NULL)
-    //    return NULL;
+
     return np;
 }
-
 
 // maxTweeter.c
 void exit_tweeter_processor_error(struct stat *buf, FILE *csv_file);
@@ -194,10 +189,6 @@ int main(int argc, char *argv[]){
 	
 	num_in_hash = 0;
 
-	// for (int i = 0; i < HASHSIZE; ++i){
-	// 	hashtab[i] = NULL;
-	// }
-
 	memset(line, '-', max_line_size - 1);
 	line[375] = '\0';
 
@@ -205,13 +196,20 @@ int main(int argc, char *argv[]){
 		
 		// handle invalid csv files
 
+		// handle empty line
+		if (strlen(line) == 0)
+		{
+			break;
+		}
 		// handle too-long file ( > 20000 )
 		if (line_count > max_line_number){
+
 			exit_tweeter_processor_error(buf, csv_file);
 		}
 
 		// handle line longer than max line size
-		if(!isspace(line[strlen(line) - 1])){ // last char is not \0 \r \n \t etc so strlen(line) > 375
+		// printf("%lu\n", strlen(line));
+		if(!isspace(line[strlen(line) - 1]) && strlen(line) > max_line_size){ // last char is not \0 \r \n \t etc so strlen(line) > 375
 			//  strlen b/c some lines might be shorter than 375 chars
 			exit_tweeter_processor_error(buf, csv_file);
 		}
@@ -228,6 +226,7 @@ int main(int argc, char *argv[]){
 			
 			// handle no header and header without 'name' column
 			if (strstr(line, "\"name\"") == NULL && strstr(line, "name") == NULL) { // cover the bases, could have "name" column or name column
+			   
 			   exit_tweeter_processor_error(buf, csv_file);
 			}
 
@@ -250,17 +249,10 @@ int main(int argc, char *argv[]){
 				num_header_cols++;
 			}
 
-			// handle commas inside of tweet
-			if(num_line_cols > num_header_cols){
-				// if the num_line_cols >  num_header_cols, there's a comma where there shouldn't be one
-				exit_tweeter_processor_error(buf, csv_file);
-			}
-
 			// get the tweeter's name
 			char *name = NULL;
 
 			if(num_line_cols == name_col_position){
-				
 				name = buffer;
 			}
 
@@ -277,6 +269,7 @@ int main(int argc, char *argv[]){
 				}
 				else{ // name is in the hash already
 					// increase the number of tweets associated with the name
+					// printf("--------->%d\n", lookup(name)->defn + 1);
 					install(name, lookup(name)->defn + 1);
 				}
 			}
@@ -284,6 +277,16 @@ int main(int argc, char *argv[]){
 			// handle too many tweeters
 			if (num_in_hash > max_num_tweeters)
 			{
+
+				exit_tweeter_processor_error(buf, csv_file);
+			}
+
+			
+
+			// handle commas inside of tweet
+			if(num_line_cols + 1 > num_header_cols){
+
+				// if the num_line_cols >  num_header_cols, there's a comma where there shouldn't be one
 				exit_tweeter_processor_error(buf, csv_file);
 			}
 
