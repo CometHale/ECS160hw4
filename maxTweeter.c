@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <ctype.h>
+#include <math.h>
 /*
 
 Calculate the top 10 tweeters by volume of tweets in a given CSV file of tweets.
@@ -38,17 +39,36 @@ require a name to be at least less than the constraint on line length
 can consider empty string as a tweeter name
 
 for ties: just print out whatever you get out of the sort
+
+
+
+// EXTRA THINGS TO CHECK FOR LATER MAYBE:
+// handle code injection
+
+// define header as a line that contains "name" column then implement checks for: 
+// handle header not on first line
+
+// handle multiple headers
+
+// handle new lines inside of tweet
+
+// handle weird unicode characters inside of tweet
+
+// handle too-long tweet; if there is such a thing
+
 */
 
 // Source: https://stackoverflow.com/questions/4384359/quick-way-to-implement-dictionary-in-c
 struct nlist { /* table entry: */
     struct nlist *next; /* next entry in chain */
     char *name; /* defined name */
-    char *defn; /* replacement text */
+    // char *defn; /* replacement text */
+	int defn; // changed for the purposes of HW4
 };
 
-#define HASHSIZE 101
+#define HASHSIZE 6295
 static struct nlist *hashtab[HASHSIZE]; /* pointer table */
+static int num_in_hash;
 
 /* hash: form hash value for string s */
 unsigned hash(char *s)
@@ -70,7 +90,7 @@ struct nlist *lookup(char *s)
 }
 
 /* install: put (name, defn) in hashtab */
-struct nlist *install(char *name, char *defn)
+struct nlist *install(char *name, int defn)
 {
     struct nlist *np;
     unsigned hashval;
@@ -80,11 +100,17 @@ struct nlist *install(char *name, char *defn)
           return NULL;
         hashval = hash(name);
         np->next = hashtab[hashval];
+        np->defn = defn; // added 
         hashtab[hashval] = np;
-    } else /* already there */
-        free((void *) np->defn); /*free previous defn */
-    if ((np->defn = strdup(defn)) == NULL)
-       return NULL;
+    } 
+    else{ /* already there */ // changed from original
+    	np->defn = defn;
+    	hashtab[hashval] = np; // replace with the new key-val pair
+    }
+    //else /* already there */
+        // free((void *) np->defn); /*free previous defn */
+    // if ((np->defn = defn) == NULL)
+    //    return NULL;
     return np;
 }
 
@@ -99,23 +125,41 @@ void exit_tweeter_processor_error(struct stat *buf, FILE *csv_file){
 	fclose(csv_file);
 	free(buf);
 	exit(-1);
-
 }
 
+int hashval_comp(const void* elem1, const void* elem2){
+	// Source : https://stackoverflow.com/questions/1787996/c-library-function-to-do-sort
+	// the names should be guaranteed to be in the hash, so no null checking
+	const char *name1 = *(const char **) elem1;
+	const char *name2 = *(const char **) elem2;
+	int f = 0;
+	int s = 0;
+
+	if(name1 != NULL){
+		f = lookup((char *) name1)->defn;
+	}
+
+	if(name2 != NULL){
+		s = lookup((char *) name2)->defn;
+	}
+	
+    if (f < s) return  1;
+    if (f > s) return -1;
+
+    return 0;
+}
 
 int main(int argc, char *argv[]){
 
 	const int max_line_size = 375; // assumed max line length of cl-tweets-short.csv 
 	const int max_line_number = 20000;
-	
-	// const int tweet_col_position; // the position of the longest token in the longest line
-	// could be equal to name_col_position
+	const int max_num_tweeters = 6294; // set pof tweeters in cl-tweets-short.csv
 	const char *csv_path;
-	// const char *top_tweeters[10];
 	const char *header;
-	// char *csv_file_lines[max_line_number];
+	char *tweeters[max_num_tweeters];
 	char line[max_line_size + 1]; // + 1 for \0
 	char temp_line[max_line_size + 1];
+
 	char *buffer; 
 	FILE *csv_file;
 	struct stat *buf = malloc(sizeof(struct stat));
@@ -123,7 +167,6 @@ int main(int argc, char *argv[]){
 	int line_count = 0;
 	int num_header_cols = 0;
 	int num_line_cols = 0;
-
 
 	// handle invalid number of command-line inputs
 	if (argc == 0 || argc > 2)
@@ -149,6 +192,11 @@ int main(int argc, char *argv[]){
 
 	// handle valid csv files
 	
+	num_in_hash = 0;
+
+	// for (int i = 0; i < HASHSIZE; ++i){
+	// 	hashtab[i] = NULL;
+	// }
 
 	memset(line, '-', max_line_size - 1);
 	line[375] = '\0';
@@ -191,6 +239,7 @@ int main(int argc, char *argv[]){
 			}
 		}
 
+		num_line_cols = 0; // reset num_line_cols before each line is strtok'd
 
 		while(buffer != NULL){
 
@@ -201,28 +250,52 @@ int main(int argc, char *argv[]){
 				num_header_cols++;
 			}
 
-			// handle comma inside of tweet
+			// handle commas inside of tweet
 			if(num_line_cols > num_header_cols){
 				// if the num_line_cols >  num_header_cols, there's a comma where there shouldn't be one
 				exit_tweeter_processor_error(buf, csv_file);
 			}
 
 			// get the tweeter's name
-			// if the name isn't in the hash already, add name : 1
-			// else increase the number of tweets associated with the name
+			char *name = NULL;
+
+			if(num_line_cols == name_col_position){
+				
+				name = buffer;
+			}
+
+			if(name != NULL){
+				// if the name isn't in the hash already, add name : 1
+
+				if(lookup(name) == NULL){ // name isn't already in the hash
+					install(name, 1);
+					num_in_hash++;
+
+					tweeters[num_in_hash] = (char *)malloc(sizeof(char) * max_line_size);
+    				strcpy(tweeters[num_in_hash], name);
+
+				}
+				else{ // name is in the hash already
+					// increase the number of tweets associated with the name
+					install(name, lookup(name)->defn + 1);
+				}
+			}
+
+			// handle too many tweeters
+			if (num_in_hash > max_num_tweeters)
+			{
+				exit_tweeter_processor_error(buf, csv_file);
+			}
 
 			buffer = strtok(NULL,",");
 			num_line_cols++;
 		}
-
-
 
 		// empty the line
 		memset(line, '-', max_line_size - 1);
 		line[375] = '\0';
 		line_count++;
 	}
-
 
 	// handle empty file
 
@@ -231,43 +304,24 @@ int main(int argc, char *argv[]){
 		exit_tweeter_processor_error(buf, csv_file);
 	}
 
-
-		// if(*line_count == 0){
-		// 	header = line;
-		// }
-
-		// handle files with # lines < 11 ( 1 header line + 10 data lines)
-			// just return whatever you do have
-
-	// handle no header && handle no 'name' column
-			// define a header as a line that contains at least a 'name' column AND 
-			// is the first line of the file
-
-
-		// handle too many tweeters
-
-		// handle too few tweeters
-
-		// handle commas inside of tweet
-
-	 	// handle new lines inside of tweet
-
-		// handle weird unicode characters inside of tweet
-
-		// handle too-long tweet
-
-
-	// EXTRA THINGS TO CHECK FOR LATER MAYBE:
-	// handle code injection
+	qsort(tweeters, num_in_hash, sizeof(sizeof(char *) * max_line_size), hashval_comp);
 	
-	// define header as a line that contains "name" column then implement checks for: 
-	// handle header not on first line
-
-	// handle multiple headers
-
-
+	// handle files with # lines < 11 ( 1 header line + 10 data lines)
+	// handle too few tweeters
+		// just return whatever you do have
+	for (int i = 0; i < (int) fmin(num_in_hash, 10); ++i)
+	{
+		if(tweeters[i] != NULL){
+			printf("%s : %d\n", tweeters[i], lookup(tweeters[i])->defn);
+		}
+	}
 
 	// no errors occurred
+	for (int i = 0; i < num_in_hash; ++i)
+	{
+		free(tweeters[i]);
+	}
+
 	fclose(csv_file);
 	free(buf);
 	return 0;
