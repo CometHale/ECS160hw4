@@ -42,6 +42,7 @@ can consider empty string as a tweeter name
 for ties: just print out whatever you get out of the sort
 */
 void exit_tweeter_processor_error(struct stat *buf, FILE *csv_file);
+void pre_process_file(FILE * csv_file, struct stat *buf, const char *csv_file_lines[], const int max_line_size, const int max_line_number, int *line_count);
 
 void exit_tweeter_processor_error(struct stat *buf, FILE *csv_file){
 
@@ -53,22 +54,61 @@ void exit_tweeter_processor_error(struct stat *buf, FILE *csv_file){
 
 }
 
-// void exit_tweeter_processor_success(struct stat *buf, char *top_tweeters[10]){
+void pre_process_file(FILE * csv_file, struct stat *buf, const char *csv_file_lines[], const int max_line_size, const int max_line_number, int *line_count){
 
-// 	free(buf);
-// 	exit(0);
-// }
+	char line[max_line_size + 1]; // + 1 for \0
+
+	memset(line, '-', max_line_size - 1);
+	line[375] = '\0';
+
+	while (fgets(line, sizeof(line), csv_file)) {
+		
+		// handle invalid csv files
+
+		// handle too-long file ( > 20000 )
+		if (*line_count > max_line_number){
+			exit_tweeter_processor_error(buf, csv_file);
+		}
+
+		// handle line longer than max line size
+		if(!isspace(line[strlen(line) - 1])){ // last char is not \0 \r \n \t etc so strlen(line) > 375
+			//  strlen b/c some lines might be shorter than 375 chars
+			exit_tweeter_processor_error(buf, csv_file);
+		}
+
+		csv_file_lines[*line_count] = line;
+
+		// empty the line
+		memset(line, '-', max_line_size - 1);
+		line[375] = '\0';
+		*line_count = *line_count + 1;
+	}
+
+
+	// handle empty file
+
+	if (*line_count == 0)
+	{
+		exit_tweeter_processor_error(buf, csv_file);
+	}
+
+	return;
+
+}
 
 int main(int argc, char *argv[]){
 
+	const int max_line_size = 375; // assumed max line length of cl-tweets-short.csv 
+	const int max_line_number = 20000;
 	const char *csv_path;
 	const char *top_tweeters[10];
+	const char *csv_file_lines[max_line_number];
+	const char *header;
 	FILE *csv_file;
-	const int max_line_size = 375; // assumed max line length of cl-tweets-short.csv
-	char line[max_line_size];
 	struct stat *buf = malloc(sizeof(struct stat));
+	int line_count = 0;
 
-// handle invalid number of command-line inputs
+	// handle invalid number of command-line inputs
 	if (argc == 0 || argc > 2)
 	{
 		exit_tweeter_processor_error(buf, csv_file);
@@ -78,67 +118,57 @@ int main(int argc, char *argv[]){
 	csv_file = fopen(csv_path, "r");
 	stat(csv_path, buf);
 
-// handle invalid file
+
+	// handle invalid file
 
 	if(csv_file == NULL){
 		exit_tweeter_processor_error(buf, csv_file);
 	}
 
-// handle incorrect file type: should not be a dir or
+	// handle incorrect file type: should not be a dir or
 	if(!S_ISREG(buf->st_mode)){
 		exit_tweeter_processor_error(buf, csv_file);
 	}
 
-// handle too-long file ( > 20000 )
+	// pre-process the file
+	pre_process_file(csv_file, buf, csv_file_lines, max_line_size, max_line_number, &line_count);
 
-	// handle invalid csv files
+	// handle valid csv files
 
-
-	// handle empty file
 	
-	// handle code injection
-	
-	// handle no header
 
-	// handle no 'name' column
-	
-	// handle too many tweeters
-
-	// handle too few tweeters
-
-	// handle commas inside of tweet
-
- 	// handle new lines inside of tweet
-
-	// handle weird unicode characters inside of tweet
-
-	// handle too-long tweet
-
-// handle valid csv files
-/* 
-
-*/
-
-
-	memset(line, '-', max_line_size - 1);
-	line[374] = '\0';
-
-	while (fgets(line, sizeof(line), csv_file)) {
-
-		// printf("%d \n", (int) line[374]);
-
-		// following if doesn't work with cl-tweets-short.csv due to a whitespace char at the end of the header line
-		// if((!isspace(line[374]) || line[374] != '\0') && line[374] != '-'){ // line is longer than the max line size
-		// 	// check if the last char is any kind of whitespace, since not guaranteed that the lines will be separated by newlines
-		// 	exit_tweeter_processor_error(buf, csv_file);
+		// if(*line_count == 0){
+		// 	header = line;
 		// }
 
+		// handle files with # lines < 11 ( 1 header line + 10 data lines)
+			// just return whatever you do have
 
-		// empty the line
-		memset(line, '-', max_line_size - 1);
-		line[374] = '\0';
-	}
+	// handle no header && handle no 'name' column
+			// define a header as a line that contains at least a 'name' column AND 
+			// is the first line of the file
 
+
+		// handle too many tweeters
+
+		// handle too few tweeters
+
+		// handle commas inside of tweet
+
+	 	// handle new lines inside of tweet
+
+		// handle weird unicode characters inside of tweet
+
+		// handle too-long tweet
+
+
+	// EXTRA THINGS TO CHECK FOR LATER MAYBE:
+	// handle code injection
+	
+	// define header as a line that contains "name" column then implement checks for: 
+	// handle header not on first line
+
+	// handle multiple headers
 
 
 
