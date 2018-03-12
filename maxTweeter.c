@@ -99,29 +99,38 @@ void exit_tweeter_processor_error(struct stat *buf, FILE *csv_file){
 	printf("%s", invalid_iput_format);
 	fclose(csv_file);
 	free(buf);
-	exit(-1);
+	exit(0);
 }
 
 int hashval_comp(const void* elem1, const void* elem2){
 	// Source : https://stackoverflow.com/questions/1787996/c-library-function-to-do-sort
-	// the names should be guaranteed to be in the hash, so no null checking
 	const char *name1 = *(const char **) elem1;
 	const char *name2 = *(const char **) elem2;
 	int f = 0;
 	int s = 0;
 
-	if(name1 != NULL){
-		f = lookup((char *) name1)->defn;
-	}
+	if(name1 != NULL &&  name2 != NULL){
 
-	if(name2 != NULL){
-		s = lookup((char *) name2)->defn;
+		if (lookup((char *) name1) != NULL && lookup((char *) name2) != NULL)
+		{
+			f = lookup((char *) name1)->defn;
+			s = lookup((char *) name2)->defn;
+			if (f < s) return  1;
+	    	if (f > s) return -1;
+		}
 	}
-	
-    if (f < s) return  1;
-    if (f > s) return -1;
 
     return 0;
+}
+
+// Source: https://stackoverflow.com/questions/30111018/detecting-an-empty-line-in-c
+int all_space(const char *str) {
+    while (*str) {
+        if (!isspace(*str++)) {
+            return 0;
+        }
+    }
+    return 1;
 }
 
 int main(int argc, char *argv[]){
@@ -180,13 +189,16 @@ int main(int argc, char *argv[]){
 		
 		// handle invalid csv files
 
-		// handle too-long file ( > 20000 )
+		if(strlen(line) && all_space(line)){
+			continue;
+		}
+
 		if (line_count > max_line_number){
 			exit_tweeter_processor_error(buf, csv_file);
 		}
 
 		// handle line longer than max line size
-		if(!isspace(line[strlen(line) - 1])){ // last char is not \0 \r \n \t etc so strlen(line) > 375
+		if(!isspace(line[strlen(line) - 1]) && line[strlen(line)] != '\0'){ // last char is not \0 \r \n \t etc so strlen(line) > 375
 			//  strlen b/c some lines might be shorter than 375 chars
 			exit_tweeter_processor_error(buf, csv_file);
 		}
@@ -233,10 +245,18 @@ int main(int argc, char *argv[]){
 
 			// get the tweeter's name
 			char *name = NULL;
-
-			if(num_line_cols == name_col_position){
+			if(num_line_cols == name_col_position && line_count != 0){
 				
 				name = buffer;
+
+				// remove whitespace from name
+				for (int i = 0; i < strlen(name); ++i)
+				{
+					if(isspace(name[i]) && i < strlen(name)){
+						name[i] = 0;
+					}
+				}
+
 			}
 
 			if(name != NULL){
@@ -286,8 +306,8 @@ int main(int argc, char *argv[]){
 		// just return whatever you do have
 	for (int i = 0; i < (int) fmin(num_in_hash, 10); ++i)
 	{
-		if(tweeters[i] != NULL){
-			printf("%s : %d\n", tweeters[i], lookup(tweeters[i])->defn);
+		if(tweeters[i] != NULL && lookup(tweeters[i]) != NULL){
+			printf("%s:%d\n", tweeters[i], lookup(tweeters[i])->defn);
 		}
 	}
 
