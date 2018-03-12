@@ -252,7 +252,7 @@ int main(int argc, char *argv[]){
 			// get the tweeter's name
 			char *name = NULL;
 
-			if(num_line_cols == name_col_position){
+			if(num_line_cols == name_col_position && line_count != 0){
 				name = buffer;
 			}
 
@@ -280,8 +280,6 @@ int main(int argc, char *argv[]){
 
 				exit_tweeter_processor_error(buf, csv_file);
 			}
-
-			
 
 			// handle commas inside of tweet
 			if(num_line_cols + 1 > num_header_cols){
@@ -315,7 +313,20 @@ int main(int argc, char *argv[]){
 	for (int i = 0; i < (int) fmin(num_in_hash, 10); ++i)
 	{
 		if(tweeters[i] != NULL){
-			printf("%s : %d\n", tweeters[i], lookup(tweeters[i])->defn);
+
+			// remove any potentional whitespace from the tweeter name
+			// Source: https://stackoverflow.com/questions/3796479/how-to-remove-a-carriage-return-from-a-string-in-c
+			char *original = (char *)malloc(sizeof(tweeters[i]));
+			strcpy(original, tweeters[i]);
+			char *src, *dst;
+		    for (src = dst = tweeters[i]; *src != '\0'; src++) {
+		        *dst = *src;
+		        if (*dst != '\r' && *dst != '\n') dst++;
+		    }
+		    *dst = '\0';
+
+			printf("%s : %d\n", tweeters[i], lookup(original)->defn);
+			free(original);
 		}
 	}
 
