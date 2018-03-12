@@ -1,10 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <string.h>
 #include <ctype.h>
-#include <math.h>
+
 /*
 Calculate the top 10 tweeters by volume of tweets in a given CSV file of tweets.
 output on valid input:
@@ -91,14 +89,14 @@ struct nlist *install(char *name, int defn)
 
 
 // maxTweeter.c
-void exit_tweeter_processor_error(struct stat *buf, FILE *csv_file);
+void exit_tweeter_processor_error(FILE *csv_file);
 
-void exit_tweeter_processor_error(struct stat *buf, FILE *csv_file){
+void exit_tweeter_processor_error(FILE *csv_file){
 
 	const char *invalid_iput_format = "Invalid Input Format\n";
 	printf("%s", invalid_iput_format);
 	fclose(csv_file);
-	free(buf);
+	// free(buf);
 	exit(0);
 }
 
@@ -121,6 +119,11 @@ int hashval_comp(const void* elem1, const void* elem2){
 	}
 
     return 0;
+}
+
+int minimum(int num1, int num2){
+
+	return num1 <= num2 ? num1 : num2;
 }
 
 // Source: https://stackoverflow.com/questions/30111018/detecting-an-empty-line-in-c
@@ -146,7 +149,7 @@ int main(int argc, char *argv[]){
 
 	char *buffer; 
 	FILE *csv_file;
-	struct stat *buf = malloc(sizeof(struct stat));
+	// struct stat *buf = malloc(sizeof(struct stat));
 	int name_col_position;
 	int line_count = 0;
 	int num_header_cols = 0;
@@ -155,24 +158,24 @@ int main(int argc, char *argv[]){
 	// handle invalid number of command-line inputs
 	if (argc == 0 || argc > 2)
 	{
-		exit_tweeter_processor_error(buf, csv_file);
+		exit_tweeter_processor_error(csv_file);
 	}
 	
 	csv_path = argv[1];
 	csv_file = fopen(csv_path, "r");
-	stat(csv_path, buf);
+	// stat(csv_path, buf);
 
 
 	// handle invalid file
 
 	if(csv_file == NULL){
-		exit_tweeter_processor_error(buf, csv_file);
+		exit_tweeter_processor_error(csv_file);
 	}
 
 	// handle incorrect file type: should not be a dir or
-	if(!S_ISREG(buf->st_mode)){
-		exit_tweeter_processor_error(buf, csv_file);
-	}
+	// if(!S_ISREG(buf->st_mode)){
+	// 	exit_tweeter_processor_error(buf, csv_file);
+	// }
 
 	// handle valid csv files
 	
@@ -194,13 +197,13 @@ int main(int argc, char *argv[]){
 		}
 
 		if (line_count > max_line_number){
-			exit_tweeter_processor_error(buf, csv_file);
+			exit_tweeter_processor_error(csv_file);
 		}
 
 		// handle line longer than max line size
 		if(!isspace(line[strlen(line) - 1]) && line[strlen(line)] != '\0'){ // last char is not \0 \r \n \t etc so strlen(line) > 375
 			//  strlen b/c some lines might be shorter than 375 chars
-			exit_tweeter_processor_error(buf, csv_file);
+			exit_tweeter_processor_error(csv_file);
 		}
 
 		strcpy(temp_line, line); // save a copy of the line
@@ -215,14 +218,14 @@ int main(int argc, char *argv[]){
 			
 			// handle no header and header without 'name' column
 			if (strstr(line, "\"name\"") == NULL && strstr(line, "name") == NULL && strstr(line, "\'name\'") == NULL) { // cover the bases, could have "name" column or name column
-			   exit_tweeter_processor_error(buf, csv_file);
+			   exit_tweeter_processor_error(csv_file);
 			}
 
 			header = line;
 
 			// handle csv isn't comma separated and singular column isn't 'name'
 			if(strlen(line) == strlen(buffer) && strncmp(buffer, "name", 4) != 0 && strncmp(buffer, "\"name\"", 6) != 0 && strncmp(buffer, "\'name\'", 6) != 0){
-				exit_tweeter_processor_error(buf, csv_file);
+				exit_tweeter_processor_error(csv_file);
 			}
 		}
 
@@ -240,7 +243,7 @@ int main(int argc, char *argv[]){
 			// handle commas inside of tweet
 			if(num_line_cols > num_header_cols){
 				// if the num_line_cols >  num_header_cols, there's a comma where there shouldn't be one
-				exit_tweeter_processor_error(buf, csv_file);
+				exit_tweeter_processor_error(csv_file);
 			}
 
 			// get the tweeter's name
@@ -279,7 +282,7 @@ int main(int argc, char *argv[]){
 			// handle too many tweeters
 			if (num_in_hash > max_num_tweeters)
 			{
-				exit_tweeter_processor_error(buf, csv_file);
+				exit_tweeter_processor_error(csv_file);
 			}
 
 			buffer = strtok(NULL,",");
@@ -296,7 +299,7 @@ int main(int argc, char *argv[]){
 
 	if (line_count == 0)
 	{
-		exit_tweeter_processor_error(buf, csv_file);
+		exit_tweeter_processor_error(csv_file);
 	}
 
 	qsort(tweeters, num_in_hash, sizeof(sizeof(char *) * max_line_size), hashval_comp);
@@ -304,7 +307,7 @@ int main(int argc, char *argv[]){
 	// handle files with # lines < 11 ( 1 header line + 10 data lines)
 	// handle too few tweeters
 		// just return whatever you do have
-	for (int i = 0; i < (int) fmin(num_in_hash, 10); ++i)
+	for (int i = 0; i < minimum(num_in_hash, 10); ++i)
 	{
 		if(tweeters[i] != NULL && lookup(tweeters[i]) != NULL){
 			printf("%s:%d\n", tweeters[i], lookup(tweeters[i])->defn);
@@ -318,6 +321,6 @@ int main(int argc, char *argv[]){
 	}
 
 	fclose(csv_file);
-	free(buf);
+	// free(buf);
 	return 0;
 }
